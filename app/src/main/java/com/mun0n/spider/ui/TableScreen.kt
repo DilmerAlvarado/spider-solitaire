@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mun0n.spider.R
+import kotlinx.coroutines.delay
 import com.mun0n.spider.game.Card
 import com.mun0n.spider.game.Difficulty
 import com.mun0n.spider.game.GameState
@@ -102,6 +103,15 @@ private data class Snap(
     val to: Offset,
     val progress: Float,
     val fan: Float,
+)
+
+private data class Demo(
+    val fromCol: Int,
+    val fromIndex: Int,
+    val toCol: Int,
+    val cards: List<Card>,
+    val spots: List<Pair<Offset, Offset>>,
+    val progress: Float,
 )
 
 private sealed interface Hit {
@@ -265,6 +275,8 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
     var snapHome by remember { mutableStateOf<Snap?>(null) }
     var snapSerial by remember { mutableIntStateOf(0) }
     var selection by remember { mutableStateOf<Selection?>(null) }
+    var demo by remember { mutableStateOf<Demo?>(null) }
+    var demoToken by remember { mutableIntStateOf(0) }
     LaunchedEffect(snapHome) {
         val home = snapHome ?: return@LaunchedEffect
         val anim = Animatable(0f)
@@ -278,6 +290,7 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
         if (state.inputLocked) {
             drag = null
             selection = null
+            demo = null
         }
     }
     val hintPulse = rememberInfiniteTransition(label = "hint")
@@ -295,13 +308,44 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
         }
         val cardW = with(density) { geom.cardW.toDp() }
         val cardH = with(density) { geom.cardH.toDp() }
+        LaunchedEffect(state.hintSerial) {
+            val plays = state.hintPlays
+            if (plays.isEmpty()) {
+                demo = null
+                return@LaunchedEffect
+            }
+            selection = null
+            val token = demoToken
+            try {
+                for (play in plays) {
+                    if (demoToken != token) return@LaunchedEffect
+                    val ride = demoRide(columns, play, geom) ?: continue
+                    val anim = Animatable(0f)
+                    suspend fun glide(target: Float, ms: Int) {
+                        anim.animateTo(target, tween(ms, easing = FastOutSlowInEasing)) {
+                            if (demoToken == token) demo = ride.copy(progress = value)
+                        }
+                    }
+                    glide(1f, 380)
+                    if (demoToken != token) return@LaunchedEffect
+                    delay(340)
+                    glide(0f, 280)
+                    if (demoToken != token) return@LaunchedEffect
+                    delay(110)
+                }
+            } finally {
+                if (demoToken == token) demo = null
+            }
+        }
         val hidden = hiddenIds(visual, shownPlay, drag, snap)
+        val riding = demo?.cards?.map { it.id }?.toSet().orEmpty()
+        val guide = demo?.let { Hint.MoveCards(it.fromCol, it.fromIndex, it.toCol) } ?: state.hint
         val active = drag?.let { it.col to it.index } ?: selection?.let { it.col to it.index }
         val hover = drag?.let { columnAt(geom, it.pos.x) }
 
         columns.forEachIndexed { col, cards ->
             val valid = active != null && SpiderRules.canMove(game, active.first, active.second, col)
-            val hintedCol = (state.hint as? Hint.MoveCards)?.toCol == col
+            val hintedCol = (guide as? Hint.MoveCards)?.toCol == col
             val hot = valid && (hover == null || hover == col) || hintedCol
             if (cards.isEmpty() || hot) {
                 val slotH = if (hot && cards.isNotEmpty()) geom.colMaxH else geom.cardH
@@ -309,19 +353,19 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                     Modifier
                         .offset { IntOffset(geom.colX[col].roundToInt(), geom.colTop.roundToInt()) }
                         .size(cardW, with(density) { slotH.toDp() })
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(CardCorner))
                         .background(Color.White.copy(alpha = if (hot) 0.16f else 0.08f))
                         .border(
                             width = if (hot) 2.dp else 1.dp,
                             color = if (hintedCol) HintGold.copy(alpha = hintAlpha) else Color.White.copy(alpha = if (hot) 0.7f else 0.28f),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(CardCorner),
                         ),
                 )
             }
             val tops = ColumnLayout.tops(cards, geom.cardH, geom.colMaxH)
             cards.forEachIndexed { index, card ->
-                if (card.id in hidden) return@forEachIndexed
-                val hinted = hintMatches(state.hint, col, index)
+                if (card.id in hidden || card.id in riding) return@forEachIndexed
+                val hinted = hintMatches(guide, col, index)
                 val selected = selection?.let { it.col == col && index >= it.index } == true
                 PlayingCard(
                     card = card,
@@ -400,6 +444,25 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                 )
             }
         }
+        demo?.let { ride ->
+            val t = smooth(ride.progress)
+            val lift = sin(t * Math.PI).toFloat() * geom.cardH * 0.05f
+            ride.cards.forEachIndexed { index, card ->
+                val (start, end) = ride.spots[index]
+                PlayingCard(
+                    card = card,
+                    hinted = true,
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                lerp(start.x, end.x, t).roundToInt(),
+                                (lerp(start.y, end.y, t) - lift).roundToInt(),
+                            )
+                        }
+                        .size(cardW, cardH),
+                )
+            }
+        }
 
         val columnsState = rememberUpdatedState(columns)
         val hiddenState = rememberUpdatedState(hidden)
@@ -414,6 +477,9 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                     detectTapOrDrag(
                         onTap = { pos ->
                             if (!lockedState.value) {
+                                demoToken++
+                                demo = null
+                                vm.dismissHint()
                                 selection = onTableTap(
                                     pos = pos,
                                     geom = geomState.value,
@@ -426,6 +492,11 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                             }
                         },
                         onDragStart = { origin ->
+                            if (!lockedState.value) {
+                                demoToken++
+                                demo = null
+                                vm.dismissHint()
+                            }
                             val layout = geomState.value
                             val shown = columnsState.value
                             val hit = hitTest(origin, layout, shown, hiddenState.value) as? Hit.CardHit
@@ -503,26 +574,22 @@ private fun onTableTap(
             return selection
         }
         is Hit.CardHit -> {
-            if (selection != null && selection.col != hit.col) {
-                if (SpiderRules.canMove(game, selection.col, selection.index, hit.col)) {
-                    vm.onDrop(selection.col, selection.index, hit.col)
-                    return null
-                }
-                if (SpiderRules.isMovableRun(columns[hit.col], hit.index)) {
-                    vm.onIllegalMove()
-                    return Selection(hit.col, hit.index)
-                }
-                vm.onIllegalMove()
-                return selection
-            }
-            if (selection != null && selection.col == hit.col && selection.index == hit.index) {
+            if (selection != null && selection.col != hit.col &&
+                SpiderRules.canMove(game, selection.col, selection.index, hit.col)
+            ) {
+                vm.onDrop(selection.col, selection.index, hit.col)
                 return null
             }
-            return if (SpiderRules.isMovableRun(columns[hit.col], hit.index)) {
-                Selection(hit.col, hit.index)
-            } else {
-                selection
+            if (SpiderRules.isMovableRun(columns[hit.col], hit.index)) {
+                val target = SpiderRules.bestTarget(game, hit.col, hit.index)
+                if (target != null) {
+                    vm.onDrop(hit.col, hit.index, target)
+                    return null
+                }
+                if (selection?.col == hit.col && selection.index == hit.index) return null
+                return Selection(hit.col, hit.index)
             }
+            return selection
         }
         null -> return null
     }
@@ -647,6 +714,22 @@ private fun openingPlay(visual: Visual): Play? = when {
     else -> null
 }
 
+private fun demoRide(columns: List<List<Card>>, play: Hint.MoveCards, geom: TableGeom): Demo? {
+    val column = columns.getOrNull(play.fromCol) ?: return null
+    if (play.fromIndex !in column.indices) return null
+    val cards = column.drop(play.fromIndex)
+    if (cards.isEmpty()) return null
+    val fromTops = ColumnLayout.tops(column, geom.cardH, geom.colMaxH)
+    val dest = columns[play.toCol]
+    val destTops = ColumnLayout.tops(dest + cards, geom.cardH, geom.colMaxH)
+    val destStart = dest.size
+    val spots = cards.indices.map { index ->
+        Offset(geom.colX[play.fromCol], geom.colTop + fromTops[play.fromIndex + index]) to
+            Offset(geom.colX[play.toCol], geom.colTop + destTops[destStart + index])
+    }
+    return Demo(play.fromCol, play.fromIndex, play.toCol, cards, spots, 0f)
+}
+
 private fun hintMatches(hint: Hint?, col: Int, index: Int): Boolean {
     val move = hint as? Hint.MoveCards ?: return false
     return move.fromCol == col && index >= move.fromIndex
@@ -661,10 +744,26 @@ private fun StockPile(
     cardW: Dp,
     cardH: Dp,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(CardCorner)
+    val nudge = remember { Animatable(0f) }
+    LaunchedEffect(hinted) {
+        if (!hinted) {
+            nudge.snapTo(0f)
+            return@LaunchedEffect
+        }
+        nudge.animateTo(-16f, tween(160, easing = FastOutSlowInEasing))
+        nudge.animateTo(0f, tween(200, easing = FastOutSlowInEasing))
+        nudge.animateTo(-9f, tween(130, easing = FastOutSlowInEasing))
+        nudge.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
+    }
     Box(
         Modifier
-            .offset { IntOffset(geom.stockLeft.roundToInt(), geom.stockTop.roundToInt()) }
+            .offset {
+                IntOffset(
+                    geom.stockLeft.roundToInt(),
+                    (geom.stockTop + nudge.value).roundToInt(),
+                )
+            }
             .size(cardW, cardH)
             .semantics { contentDescription = "Mazo, $deals repartos" },
         contentAlignment = Alignment.Center,
@@ -684,20 +783,29 @@ private fun StockPile(
                         .fillMaxSize()
                         .offset { IntOffset((layer - layers) * 3, (layer - layers) * 3) }
                         .clip(shape)
-                        .background(Color(0xFF8E1B2C))
                         .border(
                             width = if (hinted) 3.dp else 1.dp,
                             color = if (hinted) HintGold.copy(alpha = hintAlpha) else Color(0xFF5C1018),
                             shape = shape,
                         ),
+                ) {
+                    CardBackFace()
+                }
+            }
+            Box(
+                Modifier
+                    .size(width = cardW * 0.52f, height = cardH * 0.30f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xE65C1018)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = deals.toString(),
+                    color = Color.White,
+                    fontSize = (cardH.value * 0.20f).sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
-            Text(
-                text = deals.toString(),
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }
@@ -856,27 +964,29 @@ private fun difficultyHelp(difficulty: Difficulty): String = when (difficulty) {
     Difficulty.FOUR -> "Los cuatro palos. La de verdad."
 }
 
+private const val CARD_RATIO = 1.4f
+
 private fun measureTable(width: Float, height: Float): TableGeom {
-    val side = 12f
-    val gap = 8f
-    val bottomGap = 10f
+    val side = 8f
+    val gap = 6f
+    val bottomGap = 8f
     val rawW = (width - side * 2 - gap * 9) / 10f
     var cardW = rawW
-    var cardH = cardW * 1.42f
-    val usable = height - bottomGap
-    if (cardH * 1.85f > usable) {
-        cardH = usable / 1.9f
-        cardW = minOf(rawW, cardH / 1.42f)
+    var cardH = cardW * CARD_RATIO
+    val usable = (height - bottomGap).coerceAtLeast(1f)
+    if (cardH * 1.72f > usable) {
+        cardH = usable / 1.78f
+        cardW = minOf(rawW, cardH / CARD_RATIO)
     }
-    cardH = cardH.coerceIn(64f, 210f)
-    cardW = minOf(rawW, cardH / 1.42f).coerceAtLeast(minOf(44f, rawW))
+    cardH = cardH.coerceAtLeast(minOf(64f, rawW * CARD_RATIO))
+    cardW = minOf(rawW, cardH / CARD_RATIO).coerceAtLeast(minOf(44f, rawW))
     val colMaxH = (height - cardH - bottomGap).coerceAtLeast(cardH * 0.55f)
     val rowWidth = cardW * 10 + gap * 9
     val start = ((width - rowWidth) / 2f).coerceAtLeast(4f)
     val colX = List(10) { index -> start + index * (cardW + gap) }
     val stockTop = colMaxH + bottomGap
     val miniH = cardH * 0.72f
-    val miniW = miniH / 1.42f
+    val miniW = miniH / CARD_RATIO
     val pileRight = width - side
     val labelGap = 72f
     var fanStep = miniW * 0.38f

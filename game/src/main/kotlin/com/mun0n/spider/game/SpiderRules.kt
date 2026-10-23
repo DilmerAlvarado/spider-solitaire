@@ -143,6 +143,42 @@ object SpiderRules {
         return null
     }
 
+    fun bestTarget(state: GameState, fromCol: Int, fromIndex: Int): Int? =
+        landingSpots(state, fromCol, fromIndex).firstOrNull()
+
+    /**
+     * La jugada que sugiere [hint], y después los otros montones donde esa
+     * misma escalera encaja. Una columna vacía solo entra si es la sugerida.
+     */
+    fun hintTour(state: GameState): List<Hint> {
+        val chosen = hint(state) ?: return emptyList()
+        val move = chosen as? Hint.MoveCards ?: return listOf(chosen)
+        val extras = landingSpots(state, move.fromCol, move.fromIndex)
+            .filter { toCol -> toCol != move.toCol && state.columns[toCol].isNotEmpty() }
+        return buildList {
+            add(move)
+            extras.forEach { toCol -> add(Hint.MoveCards(move.fromCol, move.fromIndex, toCol)) }
+        }
+    }
+
+    private fun landingSpots(state: GameState, fromCol: Int, fromIndex: Int): List<Int> {
+        val column = state.columns.getOrNull(fromCol) ?: return emptyList()
+        if (fromIndex !in column.indices || !isMovableRun(column, fromIndex)) return emptyList()
+        val moving = column[fromIndex]
+        return (0 until COLUMN_COUNT)
+            .filter { toCol -> canMove(state, fromCol, fromIndex, toCol) }
+            .sortedWith(
+                compareBy<Int> { toCol ->
+                    val dest = state.columns[toCol]
+                    when {
+                        dest.isNotEmpty() && dest.last().suit == moving.suit -> 0
+                        dest.isNotEmpty() -> 1
+                        else -> 2
+                    }
+                }.thenBy { it },
+            )
+    }
+
     fun readyToAutoFinish(state: GameState): Boolean {
         if (state.won || state.stock.isNotEmpty()) return false
         if (state.columns.all { it.isEmpty() }) return false

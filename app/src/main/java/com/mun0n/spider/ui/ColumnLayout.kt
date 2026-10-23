@@ -21,6 +21,6 @@ object ColumnLayout {
         return tops
     }
 
-    private const val FACE_UP_STEP = 0.30f
-    private const val FACE_DOWN_STEP = 0.16f
+    private const val FACE_UP_STEP = 0.33f
+    private const val FACE_DOWN_STEP = 0.14f
 }

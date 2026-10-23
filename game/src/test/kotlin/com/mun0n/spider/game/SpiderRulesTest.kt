@@ -244,6 +244,70 @@ class SpiderRulesTest {
     }
 
     @Test
+    fun tapTargetPrefersTheSameSuitOverAnotherRank() {
+        val five = c(1, Suit.HEARTS, Rank.FIVE)
+        val sixClubs = c(2, Suit.CLUBS, Rank.SIX)
+        val sixHearts = c(3, Suit.HEARTS, Rank.SIX)
+        val state = board(listOf(listOf(five), listOf(sixClubs), listOf(sixHearts)))
+        assertEquals(2, SpiderRules.bestTarget(state, 0, 0))
+    }
+
+    @Test
+    fun tapTargetKeepsAPileAheadOfAnEmptyColumn() {
+        val five = c(1, Suit.SPADES, Rank.FIVE)
+        val six = c(2, Suit.HEARTS, Rank.SIX)
+        val state = board(listOf(listOf(five), listOf(six), emptyList()))
+        assertEquals(1, SpiderRules.bestTarget(state, 0, 0))
+    }
+
+    @Test
+    fun tapTargetUsesAnEmptyColumnWhenNothingElseFits() {
+        val king = c(1, Suit.SPADES, Rank.KING)
+        val ace = c(2, Suit.HEARTS, Rank.ACE)
+        val state = board(listOf(listOf(king), emptyList(), listOf(ace)))
+        assertEquals(1, SpiderRules.bestTarget(state, 0, 0))
+    }
+
+    @Test
+    fun tapTargetIsNullWhenTheCardFitsNowhere() {
+        val ace = c(1, Suit.HEARTS, Rank.ACE)
+        val columns = List(10) { index ->
+            if (index == 0) listOf(ace) else listOf(c(10 + index, Suit.SPADES, Rank.KING))
+        }
+        assertNull(SpiderRules.bestTarget(board(columns), 0, 0))
+    }
+
+    @Test
+    fun hintTourShowsEachPileThatCanTakeTheRunThenStops() {
+        val hidden = c(1, Suit.SPADES, Rank.TEN, up = false)
+        val five = c(2, Suit.HEARTS, Rank.FIVE)
+        val sixClubs = c(3, Suit.CLUBS, Rank.SIX)
+        val sixHearts = c(4, Suit.HEARTS, Rank.SIX)
+        val state = board(
+            listOf(listOf(hidden, five), listOf(sixClubs), listOf(sixHearts), emptyList()),
+        )
+        assertEquals(
+            listOf(
+                Hint.MoveCards(fromCol = 0, fromIndex = 1, toCol = 1),
+                Hint.MoveCards(fromCol = 0, fromIndex = 1, toCol = 2),
+            ),
+            SpiderRules.hintTour(state),
+        )
+    }
+
+    @Test
+    fun hintTourOfADealIsJustTheStock() {
+        val columns = List(10) { index ->
+            listOf(c(index, Suit.SPADES, Rank.KING))
+        }
+        val state = board(
+            columns = columns,
+            stock = List(10) { c(50 + it, Suit.SPADES, Rank.ACE, up = false) },
+        )
+        assertEquals(listOf(Hint.Deal), SpiderRules.hintTour(state))
+    }
+
+    @Test
     fun hintFallsBackToTheStockWhenNothingMoves() {
         val columns = List(10) { index ->
             listOf(c(index, Suit.SPADES, Rank.KING))

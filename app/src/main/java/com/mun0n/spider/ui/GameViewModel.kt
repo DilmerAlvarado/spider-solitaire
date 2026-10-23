@@ -44,6 +44,8 @@ data class UiState(
     val game: GameState? = null,
     val canUndo: Boolean = false,
     val hint: Hint? = null,
+    val hintPlays: List<Hint.MoveCards> = emptyList(),
+    val hintSerial: Int = 0,
     val dialog: Dialog? = null,
     val banner: String? = null,
     val visual: Visual? = null,
@@ -130,12 +132,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun onHint() {
         if (_ui.value.inputLocked) return
         val current = session ?: return
-        val hint = SpiderRules.hint(current.state)
-        if (hint == null) {
+        val tour = SpiderRules.hintTour(current.state)
+        if (tour.isEmpty()) {
+            dismissHint()
             banner(R.string.no_moves)
             return
         }
-        _ui.value = _ui.value.copy(hint = hint, banner = null)
+        showHint(tour.first(), tour.filterIsInstance<Hint.MoveCards>())
+    }
+
+    fun dismissHint() {
+        if (_ui.value.hint == null && _ui.value.hintPlays.isEmpty()) return
+        showHint(null, emptyList())
     }
 
     fun onIllegalMove() {
@@ -189,7 +197,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         auto = false
-        publish(visual = null, locked = false, hint = _ui.value.hint)
+        publish(
+            visual = null,
+            locked = false,
+            hint = _ui.value.hint,
+            hintPlays = _ui.value.hintPlays,
+        )
+    }
+
+    private fun showHint(hint: Hint?, plays: List<Hint.MoveCards>) {
+        _ui.value = _ui.value.copy(
+            hint = hint,
+            hintPlays = plays,
+            hintSerial = _ui.value.hintSerial + 1,
+            banner = null,
+        )
     }
 
     private fun performMove(
@@ -270,15 +292,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         locked: Boolean,
         dialog: Dialog? = _ui.value.dialog,
         hint: Hint? = null,
+        hintPlays: List<Hint.MoveCards> = emptyList(),
         banner: String? = _ui.value.banner,
         lastDifficulty: Difficulty = session?.state?.difficulty ?: _ui.value.lastDifficulty,
     ) {
         val current = session
+        val serial = if (hint != _ui.value.hint || hintPlays != _ui.value.hintPlays) {
+            _ui.value.hintSerial + 1
+        } else {
+            _ui.value.hintSerial
+        }
         _ui.value = UiState(
             loading = false,
             game = current?.state,
             canUndo = current?.canUndo == true,
             hint = hint,
+            hintPlays = hintPlays,
+            hintSerial = serial,
             dialog = dialog,
             banner = banner,
             visual = visual,
