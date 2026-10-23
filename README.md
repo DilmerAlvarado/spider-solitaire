@@ -1,64 +1,62 @@
 # Spider Solitaire
 
-Solitario Spider para tablet Android. Apaisado, sin anuncios, sin compras y sin red.
+Spider Solitaire for Android tablets. Landscape, no ads, no purchases, no network.
 
-![Partida](docs/spider-solitaire.gif)
+![Game](docs/spider-solitaire.gif)
 
-El as no se arrastra a un montón: cierra una escalera del mismo palo, del rey al as, y entonces sale solo. [Vídeo](docs/spider-solitaire.mp4).
+An ace is not dragged onto a pile. It closes a same-suit run from king to ace, and the run leaves on its own. [Video](docs/spider-solitaire.mp4).
 
-![Partida a 4 palos](docs/screenshots/partida.jpg)
+![Four-suit game](docs/screenshots/partida.jpg)
 
-Partida a 4 palos. El as no se arrastra a un montón: cierra una escalera del mismo palo, del rey al as, y entonces sale solo.
+![One-suit deal](docs/screenshots/reparto.jpg)
 
-![Reparto a 1 palo](docs/screenshots/reparto.jpg)
+## Rules
 
-## Reglas
+104 cards and 10 columns. The first four columns start with 6 cards, the rest with 5. Only the top card is face up. The stock holds 50 cards: five deals of 10.
 
-104 cartas y 10 columnas. Las cuatro primeras salen con 6 cartas y el resto con 5. Solo la de arriba está boca arriba. En el mazo quedan 50, cinco repartos de 10.
+- Move a face-up descending run of one suit.
+- Drop it on any suit of the next rank up, or on an empty column.
+- An ace goes on a 2. Nothing goes on an ace.
+- K Q J 10 9 8 7 6 5 4 3 2 A of one suit, on top of a column, is removed on its own. Complete 8 of them.
+- You cannot deal while a column is empty.
+- Scoring starts at 500. Each move or deal costs 1. Each completed suit scores 100. Undo restores the whole game, including the score.
+- With an empty stock and every card face up, the game finishes itself using same-suit moves only.
 
-- Se mueve una escalera boca arriba, del mismo palo y descendente.
-- Se suelta sobre cualquier palo del rango justo superior, o sobre una columna vacía.
-- El as va encima de un 2. Encima del as no va nada.
-- K Q J 10 9 8 7 6 5 4 3 2 A del mismo palo, arriba de una columna, se retira solo. Hay que completar 8.
-- No se reparte con una columna vacía.
-- Puntuación: se empieza en 500, cada movimiento o reparto resta 1, cada palo suma 100. Deshacer devuelve la partida entera, puntos incluidos.
-- Sin mazo y con todas las cartas boca arriba, la partida se termina sola usando solo movimientos del mismo palo.
+1 suit is all spades. 2 suits are spades and hearts. 4 suits are two full decks.
 
-1 palo es todo picas. 2 palos son picas y corazones. 4 palos son dos barajas completas.
-
-## Proyecto
+## Project
 
 ```
-game/   reglas, guardado y tests. Kotlin puro, sin Android
-app/    mesa en Jetpack Compose, partida en disco, icono
+game/   rules, save format, and tests. Plain Kotlin, no Android
+app/    Jetpack Compose table, on-disk game, icon
 ```
 
 | | |
 | --- | --- |
-| Lenguaje | Kotlin 2.0, Java 17 |
-| UI | Jetpack Compose. Las cartas se dibujan en `Canvas`, no son bitmaps |
-| Mínimo | Android 8 (API 26), compilado con SDK 35 |
-| Paquete | `com.mun0n.spider` |
-| Tests | JUnit, en `:game` |
+| Language | Kotlin 2.0, Java 17 |
+| UI | Jetpack Compose. Cards are drawn on a `Canvas`, not bitmaps |
+| Minimum | Android 8 (API 26), compiled with SDK 35 |
+| Package | `com.mun0n.spider` |
+| Tests | JUnit, in `:game` |
 
-Las animaciones confirman el movimiento antes de mostrarlo. Un `Animatable` de 0 a 1 interpola copias de las cartas por encima del tapete: reparto, desplazamiento y salida del palo. El arrastre sigue el dedo; si el destino no vale, la carta vuelve.
+Animations commit the move before showing it. An `Animatable` from 0 to 1 interpolates copies of the cards above the felt: the deal, a slide, and a completed suit leaving. A drag follows the finger; if the drop is illegal, the cards go back.
 
-La partida se guarda en `filesDir/spider_save.txt`. El formato es texto (`SaveCodec`), con la partida actual y el historial de deshacer.
+The game is stored in `filesDir/spider_save.txt`. The format is text (`SaveCodec`): the current game and the undo history.
 
-## Compilar
+## Build
 
-Hace falta JDK 17 y el Android SDK 35. `local.properties` con `sdk.dir` no está en el repositorio; Android Studio lo crea al abrir el proyecto.
+JDK 17 and Android SDK 35. `local.properties` with `sdk.dir` is not in the repo; Android Studio creates it when you open the project.
 
 ```bash
 ./gradlew :game:test
 ./gradlew :app:assembleDebug
 ```
 
-El APK queda en `app/build/outputs/apk/debug/`.
+The APK is at `app/build/outputs/apk/debug/`.
 
 ## Release
 
-La firma solo entra si existe `keystore.properties`. Ese archivo y el `.jks` se ignoran en git.
+Signing is applied only when `keystore.properties` exists. That file and the `.jks` are gitignored.
 
 ```bash
 cp keystore.properties.example keystore.properties
@@ -66,18 +64,18 @@ keytool -genkeypair -keystore spider-release.jks -alias spider \
   -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Rellena las dos contraseñas en `keystore.properties` y:
+Fill in both passwords in `keystore.properties`, then:
 
 ```bash
 ./gradlew :app:assembleRelease
 ```
 
-Sin ese archivo el release sale sin firmar y el resto del proyecto compila igual.
+Without that file the release APK is unsigned, and the rest of the project still builds.
 
-## Qué no tiene
+## What it does not have
 
-Sin permiso `INTERNET`, sin anuncios, sin compras y sin retos diarios. La interfaz está en español. La actividad está fijada en horizontal (`sensorLandscape`).
+No `INTERNET` permission, no ads, no purchases, and no daily challenges. The interface is in Spanish. The activity is locked to landscape (`sensorLandscape`).
 
-## Licencia
+## License
 
-[MIT](LICENSE). Se puede usar, modificar y redistribuir, también en un proyecto cerrado, conservando el aviso de copyright.
+[MIT](LICENSE). You can use, modify, and redistribute it, including in a closed project, as long as the copyright notice stays.
