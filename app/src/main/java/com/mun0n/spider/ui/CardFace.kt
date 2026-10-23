@@ -1,6 +1,7 @@
 package com.mun0n.spider.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -23,12 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.PlatformTextStyle
@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.mun0n.spider.R
 import com.mun0n.spider.game.Card
 import com.mun0n.spider.game.Rank
 import com.mun0n.spider.game.Suit
@@ -162,7 +163,7 @@ private fun CardFace(card: Card) {
                 Modifier.align(Alignment.Center).size(maxWidth * 0.52f),
             )
         } else if (card.rank.value >= Rank.JACK.value) {
-            CourtCard(card = card, redSuit = card.suit.red, modifier = Modifier.fillMaxSize())
+            CourtArt(card = card, modifier = Modifier.fillMaxSize())
         } else {
             Pips(card = card, color = color, modifier = Modifier.fillMaxSize())
         }
@@ -174,7 +175,7 @@ private fun CardFace(card: Card) {
             Modifier
                 .align(Alignment.TopStart)
                 .background(CardFaceColor)
-                .padding(start = indexPadH, top = indexPadV, end = maxWidth * 0.012f, bottom = maxHeight * 0.004f),
+                .padding(start = indexPadH, top = indexPadV, end = maxWidth * 0.02f, bottom = maxHeight * 0.012f),
         )
         Index(
             card,
@@ -184,7 +185,7 @@ private fun CardFace(card: Card) {
             Modifier
                 .align(Alignment.BottomEnd)
                 .background(CardFaceColor)
-                .padding(end = indexPadH, bottom = indexPadV, start = maxWidth * 0.012f, top = maxHeight * 0.004f)
+                .padding(end = indexPadH, bottom = indexPadV, start = maxWidth * 0.02f, top = maxHeight * 0.012f)
                 .graphicsLayer { rotationZ = 180f },
         )
     }
@@ -209,368 +210,18 @@ private fun Index(
 }
 
 @Composable
-private fun CourtCard(card: Card, redSuit: Boolean, modifier: Modifier) {
-    Canvas(modifier) {
-        drawCourtHalf(card.rank, redSuit)
-        rotate(degrees = 180f, pivot = center) {
-            drawCourtHalf(card.rank, redSuit)
-        }
+private fun CourtArt(card: Card, modifier: Modifier) {
+    val id = when (card.rank) {
+        Rank.KING -> if (card.suit.red) R.drawable.court_king_red else R.drawable.court_king_black
+        Rank.QUEEN -> if (card.suit.red) R.drawable.court_queen_red else R.drawable.court_queen_black
+        else -> if (card.suit.red) R.drawable.court_jack_red else R.drawable.court_jack_black
     }
-}
-
-private val CourtInk = Color(0xFF1A120C)
-private val CourtGold = Color(0xFFE6B325)
-private val CourtGoldDark = Color(0xFFB8860B)
-private val CourtSkin = Color(0xFFF3C9A0)
-private val CourtSkinShadow = Color(0xFFE2B08C)
-private val CourtHair = Color(0xFF1A120C)
-private val CourtBeard = Color(0xFFF7F4EC)
-private val CourtBlade = Color(0xFFE7EAF2)
-private val CourtBlue = Color(0xFF1D4E9F)
-private val CourtRed = Color(0xFFD0122D)
-
-private fun DrawScope.drawCourtHalf(rank: Rank, redSuit: Boolean) {
-    val w = size.width
-    val h = size.height
-    val line = w * 0.012f
-    val x: (Float) -> Float = { f -> w * f }
-    val y: (Float) -> Float = { f -> h * f }
-
-    robe(redSuit, rank, line, x, y)
-    when (rank) {
-        Rank.KING -> {
-            drawSword(x(0.80f), line)
-            drawKingHead(line, x, y)
-        }
-        Rank.QUEEN -> {
-            drawQueenHead(line, x, y)
-            drawRose(x(0.78f), y(0.05f), w * 0.22f)
-        }
-        else -> {
-            drawJackHead(line, x, y)
-            drawHalberd(x(0.80f), line)
-        }
-    }
-}
-
-private fun DrawScope.robe(
-    redSuit: Boolean,
-    rank: Rank,
-    line: Float,
-    x: (Float) -> Float,
-    y: (Float) -> Float,
-) {
-    val cloth = Path().apply {
-        moveTo(x(0.20f), y(0.30f))
-        quadraticTo(x(0.50f), y(0.255f), x(0.80f), y(0.30f))
-        lineTo(x(0.86f), y(0.50f))
-        lineTo(x(0.14f), y(0.50f))
-        close()
-    }
-    val bands = if (redSuit) {
-        listOf(CourtRed, CourtGold, CourtBlue, CourtInk, CourtGold, CourtBlue, CourtRed)
-    } else {
-        listOf(CourtBlue, CourtGold, CourtRed, CourtInk, CourtGold, CourtRed, CourtBlue)
-    }
-    clipPath(cloth) {
-        bands.forEachIndexed { index, color ->
-            val left = 0.12f + index * (0.76f / bands.size)
-            drawRect(
-                color,
-                Offset(x(left), y(0.25f)),
-                Size(x(0.76f / bands.size + 0.02f), y(0.26f)),
-            )
-        }
-        checkers(x(0.30f), y(0.33f), x(0.18f), y(0.16f), CourtGold, CourtInk)
-        checkers(x(0.52f), y(0.33f), x(0.16f), y(0.16f), CourtFaceColorOr(redSuit), CourtGold)
-        repeat(4) { index ->
-            val motif = diamond(x, y, 0.24f + index * 0.16f, 0.40f, 0.035f)
-            drawPath(motif, if (index % 2 == 0) CourtGold else CourtInk)
-            strokeInk(motif, line * 0.45f)
-        }
-        drawRect(CourtGold, Offset(x(0.14f), y(0.305f)), Size(x(0.72f), y(0.028f)))
-        drawRect(CourtInk, Offset(x(0.14f), y(0.328f)), Size(x(0.72f), line * 0.4f))
-    }
-    strokeInk(cloth, line)
-    if (rank != Rank.JACK) {
-        ermine(x(0.18f), y(0.268f), x(0.16f), y(0.055f), line)
-        ermine(x(0.66f), y(0.268f), x(0.16f), y(0.055f), line)
-    }
-}
-
-private fun CourtFaceColorOr(redSuit: Boolean): Color = if (redSuit) CourtRed else CourtBlue
-
-private fun diamond(
-    x: (Float) -> Float,
-    y: (Float) -> Float,
-    cx: Float,
-    cy: Float,
-    s: Float,
-): Path = Path().apply {
-    moveTo(x(cx), y(cy - s))
-    lineTo(x(cx + s * 0.7f), y(cy))
-    lineTo(x(cx), y(cy + s))
-    lineTo(x(cx - s * 0.7f), y(cy))
-    close()
-}
-
-private fun DrawScope.checkers(left: Float, top: Float, width: Float, height: Float, a: Color, b: Color) {
-    val cols = 4
-    val rows = 3
-    val cw = width / cols
-    val ch = height / rows
-    for (row in 0 until rows) {
-        for (col in 0 until cols) {
-            drawRect(
-                if ((row + col) % 2 == 0) a else b,
-                Offset(left + col * cw, top + row * ch),
-                Size(cw + 0.6f, ch + 0.6f),
-            )
-        }
-    }
-}
-
-private fun DrawScope.ermine(left: Float, top: Float, width: Float, height: Float, line: Float) {
-    drawRoundRect(CourtBeard, Offset(left, top), Size(width, height), CornerRadius(line, line))
-    drawRoundRect(
-        CourtInk,
-        Offset(left, top),
-        Size(width, height),
-        CornerRadius(line, line),
-        style = Stroke(width = line * 0.65f),
+    Image(
+        painter = painterResource(id),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier.padding(horizontal = 2.dp, vertical = 3.dp),
     )
-    listOf(0.28f to 0.42f, 0.62f to 0.42f, 0.45f to 0.72f).forEach { (sx, sy) ->
-        drawCircle(CourtInk, width * 0.055f, Offset(left + width * sx, top + height * sy))
-    }
-}
-
-private fun DrawScope.drawKingHead(line: Float, x: (Float) -> Float, y: (Float) -> Float) {
-    drawClassicCrown(king = true, line = line)
-    drawOval(CourtBeard, Offset(x(0.33f), y(0.16f)), Size(x(0.34f), y(0.16f)))
-    drawFace(x, y, bearded = true, line = line)
-    val beard = Path().apply {
-        moveTo(x(0.38f), y(0.23f))
-        lineTo(x(0.62f), y(0.23f))
-        lineTo(x(0.64f), y(0.31f))
-        lineTo(x(0.54f), y(0.285f))
-        lineTo(x(0.50f), y(0.33f))
-        lineTo(x(0.46f), y(0.285f))
-        lineTo(x(0.36f), y(0.31f))
-        close()
-    }
-    drawPath(beard, CourtBeard)
-    strokeInk(beard, line * 0.7f)
-    val stache = Path().apply {
-        moveTo(x(0.40f), y(0.22f))
-        quadraticTo(x(0.46f), y(0.20f), x(0.50f), y(0.222f))
-        quadraticTo(x(0.54f), y(0.20f), x(0.60f), y(0.22f))
-        quadraticTo(x(0.54f), y(0.235f), x(0.50f), y(0.224f))
-        quadraticTo(x(0.46f), y(0.235f), x(0.40f), y(0.22f))
-        close()
-    }
-    drawPath(stache, CourtBeard)
-    strokeInk(stache, line * 0.55f)
-}
-
-private fun DrawScope.drawQueenHead(line: Float, x: (Float) -> Float, y: (Float) -> Float) {
-    drawOval(CourtHair, Offset(x(0.30f), y(0.10f)), Size(x(0.12f), y(0.18f)))
-    drawOval(CourtHair, Offset(x(0.58f), y(0.10f)), Size(x(0.12f), y(0.18f)))
-    drawClassicCrown(king = false, line = line)
-    drawFace(x, y, bearded = false, line = line)
-    drawCircle(PipRed, size.width * 0.012f, Offset(x(0.50f), y(0.245f)))
-}
-
-private fun DrawScope.drawJackHead(line: Float, x: (Float) -> Float, y: (Float) -> Float) {
-    drawJackHat(line)
-    drawFace(x, y, bearded = false, line = line)
-}
-
-private fun DrawScope.drawFace(
-    x: (Float) -> Float,
-    y: (Float) -> Float,
-    bearded: Boolean,
-    line: Float,
-) {
-    val head = Offset(x(0.37f), y(0.095f))
-    val headSize = Size(x(0.26f), y(0.20f))
-    drawOval(CourtSkin, head, headSize)
-    drawOval(CourtInk, head, headSize, style = Stroke(width = line * 0.9f))
-    drawCircle(CourtInk, size.width * 0.013f, Offset(x(0.44f), y(0.165f)))
-    drawCircle(CourtInk, size.width * 0.013f, Offset(x(0.55f), y(0.160f)))
-    drawCircle(Color.White, size.width * 0.0045f, Offset(x(0.446f), y(0.161f)))
-    val nose = Path().apply {
-        moveTo(x(0.50f), y(0.162f))
-        lineTo(x(0.57f), y(0.21f))
-        lineTo(x(0.48f), y(0.205f))
-        close()
-    }
-    drawPath(nose, CourtSkinShadow)
-    strokeInk(nose, line * 0.45f)
-    if (!bearded) {
-        drawLine(
-            PipRed,
-            Offset(x(0.47f), y(0.23f)),
-            Offset(x(0.55f), y(0.228f)),
-            strokeWidth = line * 0.75f,
-            cap = StrokeCap.Round,
-        )
-    }
-    drawRoundRect(
-        CourtSkin,
-        Offset(x(0.46f), y(0.25f)),
-        Size(x(0.08f), y(0.045f)),
-        CornerRadius(x(0.02f), y(0.015f)),
-    )
-}
-
-private fun DrawScope.drawClassicCrown(king: Boolean, line: Float) {
-    val w = size.width
-    val h = size.height
-    val bandTop = if (king) h * 0.078f else h * 0.092f
-    val bandH = h * 0.028f
-    if (king) {
-        val cap = Path().apply {
-            moveTo(w * 0.36f, bandTop)
-            quadraticTo(w * 0.50f, h * 0.012f, w * 0.64f, bandTop)
-            close()
-        }
-        drawPath(cap, CourtRed)
-        strokeInk(cap, line * 0.6f)
-        listOf(0.40f, 0.60f).forEach { cx ->
-            val peak = Path().apply {
-                moveTo(w * (cx - 0.055f), bandTop)
-                lineTo(w * cx, h * 0.018f)
-                lineTo(w * (cx + 0.055f), bandTop)
-                close()
-            }
-            drawPath(peak, CourtGold)
-            strokeInk(peak, line * 0.7f)
-            drawCircle(CourtGold, w * 0.012f, Offset(w * cx, h * 0.016f))
-        }
-        drawRect(CourtGold, Offset(w * 0.485f, h * 0.006f), Size(w * 0.03f, bandTop))
-        drawRect(CourtGold, Offset(w * 0.455f, h * 0.030f), Size(w * 0.09f, h * 0.012f))
-    } else {
-        listOf(0.40f, 0.50f, 0.60f).forEach { cx ->
-            val arch = Path().apply {
-                moveTo(w * (cx - 0.06f), bandTop)
-                quadraticTo(w * cx, bandTop - h * 0.045f, w * (cx + 0.06f), bandTop)
-                close()
-            }
-            drawPath(arch, CourtGold)
-            strokeInk(arch, line * 0.7f)
-            drawCircle(CourtGold, w * 0.012f, Offset(w * cx, bandTop - h * 0.038f))
-        }
-    }
-    drawRoundRect(
-        CourtGold,
-        Offset(w * 0.32f, bandTop),
-        Size(w * 0.36f, bandH),
-        CornerRadius(w * 0.01f, w * 0.01f),
-    )
-    drawRoundRect(
-        CourtInk,
-        Offset(w * 0.32f, bandTop),
-        Size(w * 0.36f, bandH),
-        CornerRadius(w * 0.01f, w * 0.01f),
-        style = Stroke(width = line * 0.75f),
-    )
-    drawCircle(PipRed, w * 0.011f, Offset(w * 0.40f, bandTop + bandH / 2f))
-    drawCircle(CourtBlue, w * 0.011f, Offset(w * 0.50f, bandTop + bandH / 2f))
-    drawCircle(PipRed, w * 0.011f, Offset(w * 0.60f, bandTop + bandH / 2f))
-}
-
-private fun DrawScope.drawJackHat(line: Float) {
-    val w = size.width
-    val h = size.height
-    val cap = Path().apply {
-        moveTo(w * 0.32f, h * 0.105f)
-        quadraticTo(w * 0.34f, h * 0.035f, w * 0.50f, h * 0.030f)
-        quadraticTo(w * 0.68f, h * 0.035f, w * 0.70f, h * 0.105f)
-        close()
-    }
-    drawPath(cap, CourtBlue)
-    strokeInk(cap, line * 0.8f)
-    drawRoundRect(
-        CourtGold,
-        Offset(w * 0.26f, h * 0.095f),
-        Size(w * 0.50f, h * 0.028f),
-        CornerRadius(w * 0.012f, h * 0.01f),
-    )
-    drawRoundRect(
-        CourtInk,
-        Offset(w * 0.26f, h * 0.095f),
-        Size(w * 0.50f, h * 0.028f),
-        CornerRadius(w * 0.012f, h * 0.01f),
-        style = Stroke(width = line * 0.6f),
-    )
-    val feather = Path().apply {
-        moveTo(w * 0.66f, h * 0.09f)
-        quadraticTo(w * 0.92f, h * 0.0f, w * 0.78f, h * 0.15f)
-        quadraticTo(w * 0.86f, h * 0.04f, w * 0.66f, h * 0.09f)
-        close()
-    }
-    drawPath(feather, CourtGold)
-    strokeInk(feather, line * 0.65f)
-}
-
-private fun DrawScope.drawSword(x: Float, line: Float) {
-    val h = size.height
-    val w = size.width
-    val blade = Path().apply {
-        moveTo(x - w * 0.018f, h * 0.30f)
-        lineTo(x - w * 0.006f, h * 0.012f)
-        lineTo(x + w * 0.006f, h * 0.012f)
-        lineTo(x + w * 0.018f, h * 0.30f)
-        close()
-    }
-    drawPath(blade, CourtBlade)
-    strokeInk(blade, line * 0.7f)
-    drawLine(Color(0xFFB7BCC8), Offset(x, h * 0.02f), Offset(x, h * 0.29f), strokeWidth = line * 0.35f)
-    drawRoundRect(CourtGold, Offset(x - w * 0.055f, h * 0.285f), Size(w * 0.11f, h * 0.018f), CornerRadius(line, line))
-    drawRoundRect(CourtGoldDark, Offset(x - w * 0.016f, h * 0.30f), Size(w * 0.032f, h * 0.055f), CornerRadius(line, line))
-    drawCircle(CourtGold, w * 0.02f, Offset(x, h * 0.365f))
-}
-
-private fun DrawScope.drawRose(cx: Float, cy: Float, s: Float) {
-    drawLine(
-        Color(0xFF2E6B32),
-        Offset(cx, cy + s * 0.2f),
-        Offset(cx, size.height * 0.42f),
-        strokeWidth = s * 0.08f,
-        cap = StrokeCap.Round,
-    )
-    drawOval(Color(0xFF2E6B32), Offset(cx - s * 0.02f, cy + s * 0.85f), Size(s * 0.42f, s * 0.2f))
-    listOf(0f to -0.28f, 0.30f to -0.06f, 0.18f to 0.24f, -0.18f to 0.24f, -0.30f to -0.06f).forEach { (dx, dy) ->
-        drawCircle(PipRed, s * 0.2f, Offset(cx + dx * s, cy + dy * s))
-    }
-    drawCircle(CourtGold, s * 0.1f, Offset(cx, cy))
-}
-
-private fun DrawScope.drawHalberd(x: Float, line: Float) {
-    val h = size.height
-    val w = size.width
-    drawLine(CourtGoldDark, Offset(x, h * 0.015f), Offset(x, h * 0.46f), strokeWidth = w * 0.014f, cap = StrokeCap.Round)
-    val spike = Path().apply {
-        moveTo(x - w * 0.012f, h * 0.05f)
-        lineTo(x, h * 0.004f)
-        lineTo(x + w * 0.012f, h * 0.05f)
-        close()
-    }
-    drawPath(spike, CourtBlade)
-    strokeInk(spike, line * 0.55f)
-    val axe = Path().apply {
-        moveTo(x, h * 0.04f)
-        quadraticTo(x + w * 0.20f, h * 0.055f, x + w * 0.18f, h * 0.15f)
-        quadraticTo(x + w * 0.08f, h * 0.11f, x, h * 0.16f)
-        close()
-    }
-    drawPath(axe, CourtBlade)
-    strokeInk(axe, line * 0.65f)
-    drawCircle(CourtRed, w * 0.012f, Offset(x + w * 0.07f, h * 0.09f))
-}
-
-private fun DrawScope.strokeInk(path: Path, width: Float) {
-    drawPath(path, CourtInk, style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 @Composable

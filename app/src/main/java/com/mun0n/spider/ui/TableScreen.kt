@@ -3,6 +3,7 @@ package com.mun0n.spider.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -16,22 +17,22 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +52,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.os.Build
+import android.view.HapticFeedbackConstants
 import com.mun0n.spider.R
 import kotlinx.coroutines.delay
 import com.mun0n.spider.game.Card
@@ -78,7 +83,7 @@ private val FeltBrush = Brush.radialGradient(
     colors = listOf(Color(0xFF1B7D45), Color(0xFF0E6234), Color(0xFF084426)),
     radius = 1600f,
 )
-private val BarButtonColor = Color(0xFF08381F)
+private val MenuBarColor = Color(0xF01B5C34)
 private val Cream = Color(0xFFF6F0E4)
 private val Ink = Color(0xFF1B2418)
 
@@ -87,6 +92,8 @@ private enum class Phase { Deal, Slide, Complete }
 private data class Play(val phase: Phase, val run: Int, val progress: Float)
 
 private data class Selection(val col: Int, val index: Int)
+
+private data class Shake(val col: Int, val index: Int, val token: Int)
 
 private data class Drag(
     val col: Int,
@@ -132,12 +139,11 @@ private data class TableGeom(
     val miniH: Float,
     val foundationTop: Float,
     val fanStep: Float,
-    val pileRight: Float,
+    val foundationLeft: Float,
 ) {
-    fun pileLeft(index: Int, count: Int): Float {
-        val n = count.coerceAtLeast(1)
-        return pileRight - miniW - fanStep * (n - 1 - index)
-    }
+    fun pileLeft(index: Int, count: Int): Float = foundationLeft
+
+    fun pileTop(index: Int): Float = foundationTop - fanStep * index
 }
 
 @Composable
@@ -149,14 +155,9 @@ fun TableScreen(vm: GameViewModel = viewModel()) {
         vm.onDismissDialog()
     }
     Box(Modifier.fillMaxSize().background(FeltBrush)) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(state, vm)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                val game = state.game
-                if (game != null) {
-                    Board(game, state, vm)
-                }
-            }
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
+            val game = state.game
+            if (game != null) Board(game, state, vm)
         }
         state.banner?.let { message ->
             Text(
@@ -185,64 +186,112 @@ fun TableScreen(vm: GameViewModel = viewModel()) {
 }
 
 @Composable
-private fun TopBar(state: UiState, vm: GameViewModel) {
+private fun BoxScope.TableChrome(
+    state: UiState,
+    vm: GameViewModel,
+    geom: TableGeom,
+    finished: Int,
+) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier
+            .align(Alignment.TopStart)
+            .padding(start = 16.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.padding(end = 8.dp)) {
-            Text(
-                text = state.game?.score?.toString() ?: "—",
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.semantics { contentDescription = "puntos" },
-            )
-            Text(stringResource(R.string.points), color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp)
-        }
-        Box(Modifier.weight(1f))
+        Text(
+            text = state.game?.score?.toString() ?: "—",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { contentDescription = "puntos" },
+        )
+        Text(stringResource(R.string.points), color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp)
         state.game?.let { game ->
             Text(
                 difficultyLabel(game.difficulty),
                 color = Color.White.copy(alpha = 0.85f),
-                fontSize = 16.sp,
-                modifier = Modifier.padding(end = 4.dp),
+                fontSize = 15.sp,
             )
         }
-        BarButton(
-            text = stringResource(R.string.undo),
-            enabled = state.canUndo && !state.inputLocked,
-            onClick = vm::onUndo,
+    }
+    val density = LocalDensity.current
+    Text(
+        text = stringResource(R.string.suits_done, finished),
+        color = Color.White,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(
+                start = with(density) { (geom.foundationLeft + geom.cardW + 16f).toDp() },
+                bottom = 28.dp,
+            )
+            .semantics { contentDescription = "palos $finished de 8" },
+    )
+    Row(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 12.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(MenuBarColor)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(22.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MenuAction(
+            icon = R.drawable.ic_menu_new,
+            label = stringResource(R.string.new_game_short),
+            enabled = !state.inputLocked && !state.loading,
+            onClick = vm::onRequestNewGame,
         )
-        BarButton(
-            text = stringResource(R.string.hint),
+        MenuAction(
+            icon = R.drawable.ic_menu_hint,
+            label = stringResource(R.string.hint),
             enabled = state.game != null && !state.inputLocked,
             onClick = vm::onHint,
         )
-        BarButton(
-            text = stringResource(R.string.new_game_short),
-            enabled = !state.inputLocked && !state.loading,
-            onClick = vm::onRequestNewGame,
+        MenuAction(
+            icon = R.drawable.ic_menu_undo,
+            label = stringResource(R.string.undo),
+            enabled = state.canUndo && !state.inputLocked,
+            onClick = vm::onUndo,
         )
     }
 }
 
 @Composable
-private fun BarButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        text = text,
-        color = Color.White.copy(alpha = if (enabled) 1f else 0.40f),
-        fontSize = 18.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .heightIn(min = 52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(BarButtonColor.copy(alpha = if (enabled) 0.92f else 0.45f))
+private fun MenuAction(
+    icon: Int,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint = Color.White.copy(alpha = if (enabled) 1f else 0.38f)
+    Column(
+        Modifier
+            .width(96.dp)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics { contentDescription = text },
-    )
+            .padding(horizontal = 6.dp, vertical = 8.dp)
+            .semantics { contentDescription = label },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(28.dp),
+        )
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
 }
 
 @Composable
@@ -275,6 +324,22 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
     var snapHome by remember { mutableStateOf<Snap?>(null) }
     var snapSerial by remember { mutableIntStateOf(0) }
     var selection by remember { mutableStateOf<Selection?>(null) }
+    var shake by remember { mutableStateOf<Shake?>(null) }
+    var shakeSerial by remember { mutableIntStateOf(0) }
+    val shakeAnim = remember { Animatable(0f) }
+    val view = LocalView.current
+    LaunchedEffect(shake?.token) {
+        val current = shake ?: return@LaunchedEffect
+        val feedback = if (Build.VERSION.SDK_INT >= 30) {
+            HapticFeedbackConstants.REJECT
+        } else {
+            HapticFeedbackConstants.LONG_PRESS
+        }
+        view.performHapticFeedback(feedback)
+        shakeAnim.snapTo(0f)
+        shakeAnim.animateTo(1f, tween(420, easing = LinearEasing))
+        if (shake?.token == current.token) shake = null
+    }
     var demo by remember { mutableStateOf<Demo?>(null) }
     var demoToken by remember { mutableIntStateOf(0) }
     LaunchedEffect(snapHome) {
@@ -341,7 +406,14 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
         val riding = demo?.cards?.map { it.id }?.toSet().orEmpty()
         val guide = demo?.let { Hint.MoveCards(it.fromCol, it.fromIndex, it.toCol) } ?: state.hint
         val active = drag?.let { it.col to it.index } ?: selection?.let { it.col to it.index }
-        val hover = drag?.let { columnAt(geom, it.pos.x) }
+        val hover = drag?.let { columnAt(geom, it.pos.x, it.pos.y) }
+        val buzzing = shake
+        val shakeX = if (buzzing == null) {
+            0f
+        } else {
+            val t = shakeAnim.value
+            sin(t * Math.PI * 6).toFloat() * (1f - t) * 16f
+        }
 
         columns.forEachIndexed { col, cards ->
             val valid = active != null && SpiderRules.canMove(game, active.first, active.second, col)
@@ -367,6 +439,7 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                 if (card.id in hidden || card.id in riding) return@forEachIndexed
                 val hinted = hintMatches(guide, col, index)
                 val selected = selection?.let { it.col == col && index >= it.index } == true
+                val dx = if (buzzing != null && buzzing.col == col && index >= buzzing.index) shakeX else 0f
                 PlayingCard(
                     card = card,
                     selected = selected,
@@ -374,7 +447,7 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                geom.colX[col].roundToInt(),
+                                (geom.colX[col] + dx).roundToInt(),
                                 (geom.colTop + tops[index]).roundToInt(),
                             )
                         }
@@ -488,6 +561,10 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                                     game = gameState.value,
                                     selection = selectionState.value,
                                     vm = vm,
+                                    onDead = { col, index ->
+                                        shakeSerial += 1
+                                        shake = Shake(col, index, shakeSerial)
+                                    },
                                 )
                             }
                         },
@@ -499,7 +576,14 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                             }
                             val layout = geomState.value
                             val shown = columnsState.value
-                            val hit = hitTest(origin, layout, shown, hiddenState.value) as? Hit.CardHit
+                            shake = null
+                            val hit = hitTest(
+                                origin,
+                                layout,
+                                shown,
+                                hiddenState.value,
+                                gameState.value.finished.size,
+                            ) as? Hit.CardHit
                             val column = hit?.let { shown[it.col] }
                             if (lockedState.value || hit == null || column == null ||
                                 !SpiderRules.isMovableRun(column, hit.index)
@@ -529,7 +613,7 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                                 val layout = geomState.value
                                 val shown = columnsState.value
                                 val board = gameState.value
-                                val col = columnAt(layout, pos.x)
+                                val col = columnAt(layout, pos.x, pos.y)
                                 if (col != null && SpiderRules.canMove(board, current.col, current.index, col)) {
                                     vm.onDragDrop(current.col, current.index, col)
                                 } else {
@@ -546,6 +630,12 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                     )
                 },
         )
+        TableChrome(
+            state = state,
+            vm = vm,
+            geom = geom,
+            finished = finishedShown.size,
+        )
     }
 }
 
@@ -557,8 +647,9 @@ private fun onTableTap(
     game: GameState,
     selection: Selection?,
     vm: GameViewModel,
+    onDead: (Int, Int) -> Unit,
 ): Selection? {
-    when (val hit = hitTest(pos, geom, columns, hidden)) {
+    when (val hit = hitTest(pos, geom, columns, hidden, game.finished.size)) {
         Hit.Stock -> {
             vm.onDeal()
             return null
@@ -586,10 +677,11 @@ private fun onTableTap(
                     vm.onDrop(hit.col, hit.index, target)
                     return null
                 }
-                if (selection?.col == hit.col && selection.index == hit.index) return null
-                return Selection(hit.col, hit.index)
+                onDead(hit.col, hit.index)
+                return null
             }
-            return selection
+            onDead(hit.col, hit.index)
+            return null
         }
         null -> return null
     }
@@ -670,8 +762,8 @@ private fun completeFlight(
     val slot = already + visual.removed.take(runIndex).size
     val count = finishedCount.coerceAtLeast(slot + 1)
     val destX = geom.pileLeft(slot, count)
-    val destY = geom.foundationTop
-    val endScale = (geom.miniW / geom.cardW).coerceIn(0.45f, 1f)
+    val destY = geom.pileTop(slot)
+    val endScale = 1f
     return run.cards.mapIndexed { index, card ->
         val cardSlot = startIndex + index
         val start = if (cardSlot in tops.indices) {
@@ -817,37 +909,19 @@ private fun FoundationRow(suits: List<Suit>, layoutCount: Int, geom: TableGeom) 
     val miniH = with(density) { geom.miniH.toDp() }
     val count = layoutCount.coerceAtLeast(suits.size)
     suits.forEachIndexed { slot, suit ->
-        val left = geom.pileLeft(slot, count.coerceAtLeast(1))
         PlayingCard(
             card = Card(id = -(slot + 1), suit = suit, rank = Rank.KING, faceUp = true),
             modifier = Modifier
-                .offset { IntOffset(left.roundToInt(), geom.foundationTop.roundToInt()) }
+                .offset {
+                    IntOffset(
+                        geom.pileLeft(slot, count.coerceAtLeast(1)).roundToInt(),
+                        geom.pileTop(slot).roundToInt(),
+                    )
+                }
                 .size(miniW, miniH)
                 .semantics { contentDescription = "palo completado ${suit.spanish}" },
         )
     }
-    val label = stringResource(R.string.suits_done, suits.size)
-    Text(
-        text = label,
-        color = Color.White,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.End,
-        modifier = Modifier
-            .offset {
-                val anchor = if (suits.isEmpty()) {
-                    geom.pileRight
-                } else {
-                    geom.pileLeft(0, count.coerceAtLeast(1)) - with(density) { 8.dp.toPx() }
-                }
-                IntOffset(
-                    (anchor - with(density) { 64.dp.toPx() }).roundToInt(),
-                    (geom.foundationTop + geom.miniH / 2f - with(density) { 14.dp.toPx() }).roundToInt(),
-                )
-            }
-            .width(64.dp)
-            .semantics { contentDescription = "palos $label" },
-    )
 }
 
 @Composable
@@ -967,45 +1041,38 @@ private fun difficultyHelp(difficulty: Difficulty): String = when (difficulty) {
 private const val CARD_RATIO = 1.4f
 
 private fun measureTable(width: Float, height: Float): TableGeom {
-    val side = 8f
-    val gap = 6f
-    val bottomGap = 8f
-    val rawW = (width - side * 2 - gap * 9) / 10f
+    val edge = 16f
+    val gap = 8f
+    val header = 60f
+    val rawW = (width - edge * 2 - gap * 9) / 10f
     var cardW = rawW
     var cardH = cardW * CARD_RATIO
-    val usable = (height - bottomGap).coerceAtLeast(1f)
-    if (cardH * 1.72f > usable) {
-        cardH = usable / 1.78f
+    val room = height - edge - header
+    if (cardH * 2.35f > room) {
+        cardH = room / 2.35f
         cardW = minOf(rawW, cardH / CARD_RATIO)
     }
-    cardH = cardH.coerceAtLeast(minOf(64f, rawW * CARD_RATIO))
-    cardW = minOf(rawW, cardH / CARD_RATIO).coerceAtLeast(minOf(44f, rawW))
-    val colMaxH = (height - cardH - bottomGap).coerceAtLeast(cardH * 0.55f)
+    cardH = cardH.coerceAtLeast(minOf(72f, rawW * CARD_RATIO))
+    cardW = minOf(rawW, cardH / CARD_RATIO).coerceAtLeast(minOf(48f, rawW))
     val rowWidth = cardW * 10 + gap * 9
-    val start = ((width - rowWidth) / 2f).coerceAtLeast(4f)
+    val start = ((width - rowWidth) / 2f).coerceAtLeast(edge)
     val colX = List(10) { index -> start + index * (cardW + gap) }
-    val stockTop = colMaxH + bottomGap
-    val miniH = cardH * 0.72f
-    val miniW = miniH / CARD_RATIO
-    val pileRight = width - side
-    val labelGap = 72f
-    var fanStep = miniW * 0.38f
-    val minLeft = colX[0] + cardW + 16f
-    val room = (pileRight - labelGap - minLeft - miniW).coerceAtLeast(fanStep)
-    fanStep = minOf(fanStep, room / 7f)
+    val stockLeft = width - edge - cardW
+    val stockTop = height - edge - cardH
+    val colTop = header
     return TableGeom(
         cardW = cardW,
         cardH = cardH,
         colX = colX,
-        colTop = 0f,
-        colMaxH = colMaxH,
-        stockLeft = colX[0],
+        colTop = colTop,
+        colMaxH = (stockTop - colTop).coerceAtLeast(cardH),
+        stockLeft = stockLeft,
         stockTop = stockTop,
-        miniW = miniW,
-        miniH = miniH,
-        foundationTop = stockTop + (cardH - miniH) / 2f,
-        fanStep = fanStep,
-        pileRight = pileRight,
+        miniW = cardW,
+        miniH = cardH,
+        foundationTop = stockTop,
+        fanStep = 7f,
+        foundationLeft = edge,
     )
 }
 
@@ -1014,11 +1081,20 @@ private fun hitTest(
     geom: TableGeom,
     columns: List<List<Card>>,
     hidden: Set<Int>,
+    foundations: Int,
 ): Hit? {
     if (pos.x in geom.stockLeft..(geom.stockLeft + geom.cardW) &&
         pos.y in geom.stockTop..(geom.stockTop + geom.cardH)
     ) {
         return Hit.Stock
+    }
+    if (foundations > 0) {
+        val top = geom.pileTop(foundations - 1)
+        if (pos.x in geom.foundationLeft..(geom.foundationLeft + geom.cardW) &&
+            pos.y in top..(geom.foundationTop + geom.cardH)
+        ) {
+            return null
+        }
     }
     for (col in 9 downTo 0) {
         val left = geom.colX[col]
@@ -1038,15 +1114,22 @@ private fun hitTest(
     return null
 }
 
-private fun columnAt(geom: TableGeom, x: Float): Int? {
+private fun columnAt(geom: TableGeom, x: Float, y: Float): Int? {
+    val inBand = y >= geom.stockTop
     for (index in 0 until 10) {
-        val left = if (index == 0) geom.colX[0] - 24f else (geom.colX[index - 1] + geom.cardW + geom.colX[index]) / 2f
-        val right = if (index == 9) {
+        var left = if (index == 0) {
+            geom.colX[0] - 24f
+        } else {
+            (geom.colX[index - 1] + geom.cardW + geom.colX[index]) / 2f
+        }
+        var right = if (index == 9) {
             geom.colX[9] + geom.cardW + 24f
         } else {
             (geom.colX[index] + geom.cardW + geom.colX[index + 1]) / 2f
         }
-        if (x in left..right) return index
+        if (inBand && index == 0) left = maxOf(left, geom.foundationLeft + geom.cardW + 8f)
+        if (inBand && index == 9) right = minOf(right, geom.stockLeft - 8f)
+        if (left <= right && x in left..right) return index
     }
     return null
 }
