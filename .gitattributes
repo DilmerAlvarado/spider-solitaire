@@ -3,6 +3,8 @@
 *.jar binary
 *.jpg binary
 *.png binary
+*.gif binary
+*.mp4 binary
 *.jks binary
 *.keystore binary
 gradlew text eol=lf

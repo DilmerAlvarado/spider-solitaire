@@ -2,6 +2,10 @@
 
 Solitario Spider para tablet Android. Apaisado, sin anuncios, sin compras y sin red.
 
+![Partida](docs/spider-solitaire.gif)
+
+El as no se arrastra a un montón: cierra una escalera del mismo palo, del rey al as, y entonces sale solo. [Vídeo](docs/spider-solitaire.mp4).
+
 ![Partida a 4 palos](docs/screenshots/partida.jpg)
 
 Partida a 4 palos. El as no se arrastra a un montón: cierra una escalera del mismo palo, del rey al as, y entonces sale solo.
