@@ -71,6 +71,7 @@ import com.mun0n.spider.R
 import kotlinx.coroutines.delay
 import com.mun0n.spider.game.Card
 import com.mun0n.spider.game.Difficulty
+import com.mun0n.spider.game.Records
 import com.mun0n.spider.game.GameState
 import com.mun0n.spider.game.Hint
 import com.mun0n.spider.game.Rank
@@ -175,11 +176,17 @@ fun TableScreen(vm: GameViewModel = viewModel()) {
         when (val dialog = state.dialog) {
             Dialog.NewGame -> NewGameDialog(
                 last = state.lastDifficulty,
+                records = state.records,
                 canDismiss = state.game != null && state.game?.won != true,
                 onPick = vm::onNewGame,
                 onDismiss = vm::onDismissDialog,
             )
-            is Dialog.Won -> WonDialog(score = dialog.score, onNewGame = vm::onRequestNewGame)
+            is Dialog.Won -> WonDialog(
+                score = dialog.score,
+                best = dialog.best,
+                isRecord = dialog.isRecord,
+                onNewGame = vm::onRequestNewGame,
+            )
             null -> Unit
         }
     }
@@ -927,6 +934,7 @@ private fun FoundationRow(suits: List<Suit>, layoutCount: Int, geom: TableGeom) 
 @Composable
 private fun NewGameDialog(
     last: Difficulty,
+    records: Records,
     canDismiss: Boolean,
     onPick: (Difficulty) -> Unit,
     onDismiss: () -> Unit,
@@ -952,6 +960,14 @@ private fun NewGameDialog(
             ) {
                 Text(difficultyLabel(difficulty), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
                 Text(difficultyHelp(difficulty), color = Color.White.copy(alpha = 0.85f), fontSize = 16.sp)
+                records.best[difficulty]?.let { best ->
+                    Text(
+                        stringResource(R.string.record, best),
+                        color = Color.White.copy(alpha = 0.65f),
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
         }
         if (canDismiss) {
@@ -971,7 +987,7 @@ private fun NewGameDialog(
 }
 
 @Composable
-private fun WonDialog(score: Int, onNewGame: () -> Unit) {
+private fun WonDialog(score: Int, best: Int, isRecord: Boolean, onNewGame: () -> Unit) {
     Scrim(onDismiss = null) {
         Text(stringResource(R.string.you_won), color = Ink, fontSize = 40.sp, fontWeight = FontWeight.Bold)
         Text(
@@ -982,6 +998,13 @@ private fun WonDialog(score: Int, onNewGame: () -> Unit) {
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(stringResource(R.string.points), color = Ink.copy(alpha = 0.7f), fontSize = 18.sp)
+        Text(
+            if (isRecord) stringResource(R.string.new_record) else stringResource(R.string.record, best),
+            color = Color(0xFF0E6A38),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Text(
             stringResource(R.string.new_game),
             color = Color.White,

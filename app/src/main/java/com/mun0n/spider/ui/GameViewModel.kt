@@ -11,6 +11,7 @@ import com.mun0n.spider.game.Difficulty
 import com.mun0n.spider.game.GameSession
 import com.mun0n.spider.game.GameState
 import com.mun0n.spider.game.Hint
+import com.mun0n.spider.game.Records
 import com.mun0n.spider.game.RemovedRun
 import com.mun0n.spider.game.SaveData
 import com.mun0n.spider.game.Slide
@@ -36,7 +37,7 @@ data class Visual(
 
 sealed interface Dialog {
     data object NewGame : Dialog
-    data class Won(val score: Int) : Dialog
+    data class Won(val score: Int, val best: Int, val isRecord: Boolean) : Dialog
 }
 
 data class UiState(
@@ -51,6 +52,7 @@ data class UiState(
     val visual: Visual? = null,
     val inputLocked: Boolean = false,
     val lastDifficulty: Difficulty = Difficulty.ONE,
+    val records: Records = Records(),
 )
 
 class GameViewModel(app: Application) : AndroidViewModel(app) {
@@ -68,7 +70,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            val save = withContext(Dispatchers.IO) { repo.load() }
+            val (save, records) = withContext(Dispatchers.IO) {
+                repo.load() to repo.loadRecords()
+            }
             session = save.game?.let { GameSession(it, save.history) }
             _ui.value = UiState(
                 loading = false,
@@ -76,6 +80,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 canUndo = session?.canUndo == true,
                 dialog = if (save.game == null) Dialog.NewGame else null,
                 lastDifficulty = save.lastDifficulty,
+                records = records,
             )
             if (save.game != null) scheduleAutoIfReady()
         }
@@ -183,7 +188,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val game = session?.state ?: return
         if (game.won) {
             auto = false
-            publish(visual = null, locked = false, dialog = Dialog.Won(game.score), hint = null)
+            val (records, dialog) = award(game)
+            publish(visual = null, locked = false, dialog = dialog, hint = null, records = records)
             persist()
             return
         }
@@ -254,7 +260,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         persist()
         if (visual == null) {
             if (result.state.won) {
-                publish(visual = null, locked = false, dialog = Dialog.Won(result.state.score))
+                val (records, dialog) = award(result.state)
+                publish(visual = null, locked = false, dialog = dialog, records = records)
             } else {
                 scheduleAutoIfReady()
             }
@@ -295,6 +302,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         hintPlays: List<Hint.MoveCards> = emptyList(),
         banner: String? = _ui.value.banner,
         lastDifficulty: Difficulty = session?.state?.difficulty ?: _ui.value.lastDifficulty,
+        records: Records = _ui.value.records,
     ) {
         val current = session
         val serial = if (hint != _ui.value.hint || hintPlays != _ui.value.hintPlays) {
@@ -314,7 +322,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             visual = visual,
             inputLocked = locked,
             lastDifficulty = lastDifficulty,
+            records = records,
         )
+    }
+
+    private fun award(game: GameState): Pair<Records, Dialog.Won> {
+        val (next, isRecord) = _ui.value.records.consider(game.difficulty, game.score)
+        if (next != _ui.value.records) persistRecords(next)
+        return next to Dialog.Won(game.score, next.best.getValue(game.difficulty), isRecord)
     }
 
     private fun persist() {
@@ -330,6 +345,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val data = latestSave ?: return@withLock
                 repo.save(data)
             }
+        }
+    }
+
+    private fun persistRecords(records: Records) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.saveRecords(records)
         }
     }
 }
