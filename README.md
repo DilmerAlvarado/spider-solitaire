@@ -2,13 +2,13 @@
 
 Spider Solitaire for Android tablets. Landscape, no ads, no purchases, no network.
 
-![Game](docs/spider-solitaire.gif)
+![Game](docs/table.gif)
 
-An ace is not dragged onto a pile. It closes a same-suit run from king to ace, and the run leaves on its own. [Video](docs/spider-solitaire.mp4).
+An ace is not dragged onto a pile. It closes a same-suit run from king to ace, and the run leaves on its own. [Video](docs/table.mp4).
 
-![Four-suit game](docs/screenshots/partida.jpg)
+![Four-suit game](docs/screenshots/four-suits.jpg)
 
-![One-suit deal](docs/screenshots/reparto.jpg)
+![One-suit deal](docs/screenshots/one-suit.jpg)
 
 ## Rules
 
