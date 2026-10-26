@@ -84,12 +84,15 @@ private val PipPositions: Map<Int, List<Pair<Float, Float>>> = mapOf(
     ),
 )
 
+private val LockedVeil = Color(0xFF1C1C1C)
+
 @Composable
 fun PlayingCard(
     card: Card,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     hinted: Boolean = false,
+    locked: Boolean = false,
 ) {
     val shape = RoundedCornerShape(CardCorner)
     val borderColor = when {
@@ -109,6 +112,9 @@ fun PlayingCard(
             },
     ) {
         if (card.faceUp) CardFace(card) else CardBackFace()
+        if (locked) {
+            Box(Modifier.fillMaxSize().background(LockedVeil.copy(alpha = 0.40f)))
+        }
     }
 }
 

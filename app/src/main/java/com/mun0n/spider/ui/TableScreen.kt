@@ -451,6 +451,7 @@ private fun Board(game: GameState, state: UiState, vm: GameViewModel) {
                     card = card,
                     selected = selected,
                     hinted = hinted,
+                    locked = card.faceUp && !SpiderRules.isMovableRun(cards, index),
                     modifier = Modifier
                         .offset {
                             IntOffset(
